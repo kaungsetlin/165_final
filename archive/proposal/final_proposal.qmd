@@ -1,0 +1,29 @@
+---
+title: "STAT 165 Project Proposal"
+author: "Kaung Set Lin"
+format: pdf
+---
+
+-   Group Members: Kaung Set Lin
+
+-   Option: In-Depth Long Term Forecast
+
+-   Question: What will be stock price of TSLA on June 1st?
+
+-   Description: This question interests me because predicting the movement of a stock price is like predicting how a patch of ocean waves will flow by looking at its neighbors and without having the knowledge about the bigger picture such as the rotating Earth and the Coriolis effect.
+It is challenging and involves taking into considerations various predictors such as company fundamentals, economic/political conditions, public sentiment, industry outlook, and insider information. Another reason is my interest for time series analysis and the various models available today (e.g. GARCH models, threshold models, vector auto regression models).  
+
+- Steps:
+
+  1.    Gather training data and build financial predictors such as EPS, inventory turnover, current ratio.
+  2.    Build indicator of probability vectors with regards to reference classes and other considerations (e.g. industry/economic/political conditions, management changes).
+  3.    Fit several regression models with ARIMA or GARCH errors. Use time series cross validation and metrics such as AICc and BIC. 
+  4.    Analyze the residuals to see if they are white noise and further refine the model.
+  5.    Use concepts from class like combining forecasts to create the final prediction interval.
+
+  Concepts from class that might be useful:
+  
+  1.    Base rates and reference classes
+  2.    Prioritizing information
+  3.    Combining forecasts
+  4.    Turning considerations into probabilities

@@ -1,0 +1,13 @@
+---
+title: "Final Project Resolution Criteria"
+author: "Kaung Set Lin"
+format: pdf
+---
+
+- Price will be verified on Yahoo! Finance at finance.yahoo.com
+- If market data is unavailable due to a holiday or unexpected reasons, the price will be set to the most recent past price that has been recorded at 01:00 PM PST.
+- If TSLA stock data becomes unavailable from Yahoo! Finance, the most recent past price that has been recorded at 01:00 PM PST will be used. 
+  - Bankruptcy
+  - Privatization
+  - Rebranding (e.g. FB to META)
+- If data from Yahoo! Finance is not available (e.g. server error), another credible source such as Robinhood will be used instead.   

@@ -1,0 +1,285 @@
+---
+title: "STAT 165 Final Project"
+author: "Kaung Set Lin"
+format: pdf
+---
+
+```{r}
+#| label: setup
+#| include: false
+
+library(tidyverse)
+library(fpp3)
+```
+
+# Introduction
+
+## Question Statement
+
+What will the closing price TSLA (Tesla, Inc.) be by 06:30 AM PST on June 30th, 2024? 
+
+## Resolution Criteria
+
+- Price will be verified on Yahoo! Finance at finance.yahoo.com
+- If market data is unavailable due to a holiday or unexpected reasons, the price will be set to the most recent past price that has been recorded at 01:00 PM PST.
+- If TSLA stock data becomes unavailable from Yahoo! Finance, the most recent past price that has been recorded at 01:00 PM PST will be used. 
+  - Bankruptcy
+  - Privatization
+  - Rebranding (e.g. FB to META)
+- If data from Yahoo! Finance is not available (e.g. server error), another credible source such as Robinhood will be used instead.   
+
+## Background Research
+
+**Company Overview**
+
+Tesla, Inc. is an American electric vehicle (EV) and clean energy company founded in 2003 by Martin Eberhard and Marc Tarpenning. Elon Musk joined the company shortly after its inception and has been its CEO since 2008. Tesla's primary focus is on designing, manufacturing, and selling electric cars, energy storage solutions, and solar products. It is widely recognized for its groundbreaking innovations in the EV industry, including its flagship electric cars like the Model S, Model 3, Model X, and Model Y, as well as its energy products such as the Powerwall and solar roof tiles.
+
+**Financial Overview**
+
+Tesla's IPO occurred on June 29, 2010 and was listed on the NASDAQ stock exchange under the ticker symbol "TSLA". Tesla's revenue has seen significant growth over the years, driven by increasing vehicle deliveries and energy storage deployments. Despite periodic losses, the company has demonstrated strong revenue growth and improving profitability in recent years, aided by cost reductions, increased production efficiencies, and regulatory credit sales. Tesla's stock has experienced substantial volatility, with periods of rapid appreciation followed by corrections, reflecting investor sentiment, market trends, and regulatory developments in the EV sector.
+
+# Key Considerations and Building a Framework
+
+| Consideration | Importance | Uncertainty |
+| ------------ | ------------ | ------------ |
+| Historical Volatility | High | Medium |
+| Trend in Financial Metrics | High | Low |
+| Insider Information | Medium | High |
+| New Technology/Product | Medium | Medium |
+| US Events/Economy/Politics | Medium | High |
+| Global Events/Economy/Politics | Low | High |
+
+**Framework Overview**
+
+Stock volatility will play an important role because it encapsulates the response (both rational and irrational) of investors to all other key considerations. The trend in financial ratios such as earnings per share and revenue will also be considered. Other considerations are insider information such as management changes and insider stock sales. In addition, the prospect of technological innovations and new product releases should also be considered (e.g. Full-Self Driving, Optimus Robot, Tesla Specific GPT). Other considerations include the state of US and the world in general. For example, if a forecast was made a few years back without consideration of the pandemic, it would be too optimistic. Recent global and local events to keep in mind are Tesla's plans on building affordable vehicles, US elections, consumer outlook, global competition, and availability of raw materials for manufacturing.
+
+
+## I. Fermi Estimates and Zeroth Order Forecasting
+
+
+
+```{r}
+#| echo: false
+#| message: false
+
+tsla <- read_csv('tsla_price.csv')
+tsla |> select(Date, Close) |> as_tsibble(index = Date) -> tsla
+tsla |> fill_gaps() |> fill(Close) -> tsla 
+tsla |> model(zeroth = NAIVE(Close)) -> fit
+fit |> forecast(h = 90) -> fc
+fc |> autoplot(tsla |> filter(year(Date) >= 2023))
+```
+
+Given only the time series of closing price, the optimal baseline prediction would be a zeroth order forecast. The point forecast would be 164.90 and the 80% interval on this naive model is (119, 211). The first order forecasting method would be inferior to the zeroth order forecast because the trend in the stock is not strong and it behaves more like a random walk. This simple model provides a good Fermi estimate into the closing price in terms of the order of magnitude and the relative error for the final prediction. Building from this zeroth order forecasting model, other forecasting concepts such as base rates and the "Other" option will be used to augment this point forecast and reduce the width of the prediction interval. 
+
+
+## II. Base Rates and Reference Classes
+
+```{r}
+#| echo: false
+#| results: hide
+#| message: false
+
+dates <- c(
+  '2018-03-31', '2018-06-30', '2018-09-30', '2018-12-31',
+  '2019-03-31', '2019-06-30', '2019-09-30', '2019-12-31',
+  '2020-03-31', '2020-06-30', '2020-09-30', '2020-12-31',
+  '2021-03-31', '2021-06-30', '2021-09-30', '2021-12-31',
+  '2022-03-31', '2022-06-30', '2022-09-30', '2022-12-31',
+  '2023-03-31', '2023-06-30', '2023-09-30', '2023-12-31'
+  ) |> as.Date() 
+dates |> update(month = month(dates) - 2, day = 1) -> dates
+revenue <- c(
+  3408e6, 4002e6, 6824e6, 7226e6,
+  4541e6, 6350e6, 6303e6, 7384e6,
+  5985e6, 6036e6, 8771e6, 10744e6,
+  10389e6, 11958e6, 13757e6, 17719e6,
+  18756e6, 16934e6, 21454e6, 24318e6,
+  23329e6, 24927e6, 23350e6, 25167e6
+  )
+eps <- c(
+  -0.28, -0.28, 0.12, 0.06,
+  -0.27, -0.15, 0.06, 0.04,
+  0.01, 0.03, 0.09, 0.08,
+  0.13, 0.34, 0.48, 0.68,
+  0.95, 0.66, 0.94, 1.07,
+  0.73, 0.77, 0.53, 2.27
+)
+
+metrics <- tibble(Quarter=as.Date(dates), revenue=revenue, eps=eps) |> 
+  as_tsibble(index=Quarter)
+
+metrics |> 
+  autoplot(log(revenue)) + 
+  geom_smooth(method = "lm", se = F) +
+  labs(title = "TSLA Log Revenue", subtitle = "2018-2023", ylab = "Log($)")
+
+metrics |> 
+  autoplot(log(eps + 1)) + 
+  geom_smooth(method = "lm", se = F) +
+  labs(title = "TSLA Adjusted Log EPS", subtitle = "2018-2023", ylab="Adjusted EPS")
+
+tsla |>
+  filter(year(Date) >= 2018) |>
+  index_by(Quarter = yearquarter(Date)) |> 
+  summarize(Close = mean(Close)) -> tsla_q
+lambda <- tsla_q |>
+  features(Close, features = guerrero) |>
+  pull(lambda_guerrero)
+tsla_q |>
+  autoplot(box_cox(Close, lambda)) + 
+  geom_smooth(method = "lm", se = F) +
+  labs(title = "TSLA Quartely Mean Aggregated Close", 
+       ylab = "Box-Cox($)",
+       subtitle = paste("Box-Cox Transform Lambda", round(lambda, 2)))
+```
+
+The revenue and earnings per share of Tesla are used as reference classes to gauge where the price of TSLA is headed. These metrics reveal a positive linear trend and suggests that a linear regression with autocorrelated errors may be useful. Before doing so, it is possible that other stocks in the automotive sector may also provide additional information as reference classes. The following companies from the automotive industry have been chosen: Ford (F), General Motors (GM), Rivian (RIVN), and Nio (NIO). 
+
+```{r}
+#| echo: false
+#| results: hide
+#| message: false
+
+library(corrplot)
+library(astsa)
+automotive <- read.csv('automotive.csv')
+automotive['Date'] <- as.Date(automotive$Date)
+automotive <- automotive[-1] 
+automotive <- automotive[automotive$Date >= '2021-11-10',] # Remove NAs
+auto_returns <- lapply(log(automotive[,names(automotive) != 'Date']), diff) |>
+  as.data.frame()
+corrplot(cor(auto_returns), method='number')
+tsplot(auto_returns |> tail(50), col=c(5, 4, 3, 1, 2), lty = c(2, 2, 2, 2, 1), spag=T)
+legend(x='bottomright', legend=names(auto_returns),col=c(5, 4, 3, 1, 2), lty = c(2, 2, 2, 2, 1))
+# lag2.plot(auto_returns$RIVN, auto_returns$TSLA, 12)
+# acf2(auto_returns$TSLA, main="ACF and PACF of TSLA")
+library(fpp3)
+```
+The correlation matrix on the returns of the automotive stocks indicate noticeable correlation but only at the same point in time. Since there were no beneficial lead-lag relationships with TSLA within the automotive sector, lagged predictors will not be used as regressors.
+
+```{r}
+#| echo: false
+#| message: false
+
+set.seed(165)
+tsla_q |> mutate(EPS=c(eps, 0, 0), Revenue=c(revenue, 0, 0)) -> t
+t <- t |> filter(year(Quarter) < 2024)
+normalize <- function(x) {
+  (x - min(x)) / (max(x) - min(x))
+}
+t |> mutate(Revenue = normalize(t$Revenue)) -> t
+fit <- t |> 
+  model(
+    arima=ARIMA(box_cox(Close, lambda) ~ Revenue + EPS + pdq(1, 1, 0)),
+    nnetar=NNETAR(box_cox(Close, lambda) ~ Revenue + EPS, n_nodes=2, n_networks = 10)
+    )
+fut <- new_data(t, 4) |> mutate(Close=170, Revenue=0.8, EPS=0.6)
+fit |> forecast(new_data=fut) -> fc
+fc |> autoplot(t) + 
+  labs(title='TSLA 2024 Quarterly Prediction', 
+       subtitle='ARIMA and Feedforward NN with Exogenous Regressors')
+```
+```{r}
+#| echo: false
+#| message: false
+#| results: hide
+
+fit |> select(nnetar) |> report()
+fit |> select(arima) |> report()
+fc |> 
+  filter(Quarter == yearquarter('2024 Q3')) |> 
+  hilo() |>
+  select(.mean, `80%`) |> relocate(Quarter, .model)
+```
+
+After quarterly aggregating TSLA closing prices by mean, a regression model was fitted using normalized revenue and earnings per share with ARIMA errors. The ARIMA(1, 1, 0) model for the residuals after regression was chosen based on the optimal AICc score. It forecasts that the price of TSLA in the third quarter will be within \$157 and \$495 with 80% confidence interval. In addition to this model, a feedforward neural net with one hidden layer (2 units) taking EPS, revenue, and lagged values as input was fitted. Ensembling both models with equal weights give a point forecast estimate at around $315 and a 80% prediction interval of (276, 354). The combined model is fairly optimistic due to the underlying positive trends of the reference classes that were used as regressors in fitting the model. In the next section, the "Other" option will be used as a regularization component to the final forecasting model. 
+
+## III. Simulations and The "Other" Option
+
+Using the MECE principle, the subjective list of all possible major events that could invalidate the previous forecasts are given below:
+
+**Concerning Elon Musk**
+
+  +   Ousted as CEO of Tesla (0.01%)
+  +   Sexual harassment lawsuit (0.03%)
+  +   Assassination (0.0001%)
+  
+**Concerning Company and Competition**
+
+  +   Dangerous flaw in self-driving software (0.01%)
+  +   Whistleblower on invasion of privacy (0.01%)
+  +   Leaked internal documents (0.001%)
+  +   Competitor unveils cheaper and better product (0.02%)
+  
+**Concerning Politics** 
+
+  +   Political barrier (0.2%)
+  +   Production resource barrier (0.1%)
+  
+**Concerning Global Events**
+
+  +   Major natural disaster (0.005%)
+  +   Pandemic (0.01%)
+  +   WWIII (0.0001%)
+
+The probabilities on the right are my subjective daily estimation for each event occurring. The sum of these probabilities can be used in a simulation of a Poisson process which can give insight into the average probability of any of these events occurring within the forecasting window. If an arrival occurs within the forecast horizon, it is predicted that the forecast stock price would decline by X% where X follows a normal distribution with mean 12% and 3% standard deviation.
+
+```{r}
+lambda <- (0.01 + 0.03 + 0.0001 + 
+          0.01 + 0.01 + 0.001 + 
+          0.02 + 0.2 + 0.1 + 
+          0.005 + 0.01 + 0.0001) / 100
+
+forecast_horizon <- 80
+num_simulations <- 5000
+
+simulations <- matrix(rpois(num_simulations * forecast_horizon, lambda), 
+                                nrow = num_simulations)
+
+# Check if at least one occurrence occurred in each simulation
+sim_with_occurrence <- apply(simulations, 1, function(x) any(x > 0))
+
+proportion_with_occurrence <- sum(sim_with_occurrence) / num_simulations
+print(proportion_with_occurrence)
+```
+Using lambda, `r round(lambda, 5)`, a Poisson process is simulated to model the occurrence for any of the unlikely events over an 80-day time horizon for 5000 simulations. Each simulation is checked for whether there was at least one arrival of the Poisson process. Finally, by dividing the results with the number of simulations, the final proportion was calculated to be `r proportion_with_occurrence`. This represents the expected probability of an unlikely event that could bring down the forecast price. 
+
+# Final Forecast
+
+The first section used zeroth order forecasting to get a baseline forecast (164.9) for TSLA's closing price. The naïve forecasting method provides an optimal baseline reference because the time series for financial data looks similar to a random walk. The next section made use of base rates and reference classes by considering the trends for basic financial metrics of Tesla such as revenue and earnings per share. Noting a strong positive linear trend for these metrics as well as the quarterly aggregated closing price, a linear regression model with autocorrelated errors was fitted. In addition, a feedforward neural net with one hidden layer containing two units was also fitted. Giving each forecast model equal weights, an ensemble model was created which gave a point estimate of $315 and an 80% prediction interval of (216.79, 424.70). Finally, the third section considered the "Other" option and to counteract and regularize the optimistic nature of the model in the second section by using the MECE principle to consider all unlikely events that may invalidate the models above. 
+
+The formula for the final forecast is as follows:
+
+> (0.4)(Zeroth Order Forecast) + (0.6)(Ensemble Model) - (0.3)(Other Option)
+
+```{r}
+zeroth_mean <- 164.9
+zeroth_se <- 58.65
+weight_1 <- 0.4
+
+ensemble_mean <- 315
+ensemble_se <- 85.60
+weight_2 <- 0.6
+
+other_option <- proportion_with_occurrence
+decline_mean <- .12
+decline_se <- .03
+
+
+make_forecast <- function() {
+  weight_1 * rnorm(1, zeroth_mean, zeroth_se) +
+  weight_2 * rnorm(1, ensemble_mean, ensemble_se) -
+  other_option * rnorm(1, decline_mean, decline_se)
+}
+
+nsim <- 5000
+final_forecast <- replicate(nsim, make_forecast()) # simulate final forecast
+ff_mean <- mean(final_forecast)
+ff_lb <- ff_mean - qnorm(0.9) * sd(final_forecast)
+ff_ub <- ff_mean + qnorm(0.9) * sd(final_forecast)
+hist(final_forecast, main="Histogram for Final Forecast", freq=F, xlab="")
+```
+
+The final forecast for the price of TSLA by 06:30 AM PST on June 30th, 2024 is `r round(ff_mean, 2)` with 80% prediction interval as (`r round(ff_lb, 2)`, `r round(ff_ub, 2)`).
+
