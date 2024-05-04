@@ -283,3 +283,5 @@ hist(final_forecast, main="Histogram for Final Forecast", freq=F, xlab="")
 
 The final forecast for the price of TSLA by 06:30 AM PST on June 30th, 2024 is `r round(ff_mean, 2)` with 80% prediction interval as (`r round(ff_lb, 2)`, `r round(ff_ub, 2)`).
 
+> Github Repository: https://github.com/kaungsetlin/165_final/
+
